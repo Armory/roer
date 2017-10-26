@@ -14,6 +14,41 @@ import (
 )
 
 // PipelineSaveAction creates the ActionFunc for saving pipeline configurations.
+func PipelineExecAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
+	return func(cc *cli.Context) error {
+		appName := cc.Args().Get(0)
+		pipelineName := cc.Args().Get(1)
+
+		logrus.WithFields(logrus.Fields {
+			"app": appName,
+			"pipeline": pipelineName,
+		}).Info("Executing Pipeline...")
+
+
+		client, err := clientFromContext(cc, clientConfig)
+		if err != nil {
+			return errors.Wrapf(err, "creating spinnaker client")
+		}
+
+		resp, err := client.ExecPipeline(appName, pipelineName)
+		if err != nil {
+			return errors.Wrapf(err, "couldn't execute pipeline")
+		}
+		fmt.Printf("Ref task id: %s\n", resp.Ref)
+		if cc.Bool("monitor") {
+			execResp, err := client.PollTaskStatus(resp.Ref, 30 * time.Minute)
+			if err != nil {
+				logrus.WithField("exec_response", execResp).Errorf("Executing response error", err)
+				return err
+			}
+			if execResp.Status != "SUCCESS" {
+				return fmt.Errorf("pipeline did not complete with a SUCCESS status.  Ended with status: %s", execResp.Status)
+			}
+		}
+		return nil
+	}
+}
+
 func PipelineSaveAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
 	return func(cc *cli.Context) error {
 		configFile := cc.Args().Get(0)

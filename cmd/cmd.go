@@ -37,6 +37,24 @@ func NewRoer(version string, clientConfig spinnaker.ClientConfig) *cli.App {
 					},
 					Action: roer.PipelineSaveAction(clientConfig),
 				},
+				{
+					Name:      "exec",
+					Usage:     "execute pipeline",
+					ArgsUsage: "[application name] [pipeline name]",
+					Flags: []cli.Flag{
+						cli.BoolFlag{
+							Name:  "monitor, m",
+							Usage: "Continue to monitor the executing of the pipeline",
+						},
+					},
+					Before: func(cc *cli.Context) error {
+						if cc.NArg() != 2 {
+							return errors.New("app name and pipeline are required")
+						}
+						return nil
+					},
+					Action: roer.PipelineExecAction(clientConfig),
+				},
 			},
 		},
 		{
