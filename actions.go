@@ -41,7 +41,7 @@ func PipelineExecAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
 				logrus.WithField("exec_response", execResp).Errorf("Executing response error", err)
 				return err
 			}
-			if execResp.Status != "SUCCESS" {
+			if execResp.Status != "SUCCEEDED" {
 				return fmt.Errorf("pipeline did not complete with a SUCCESS status.  Ended with status: %s", execResp.Status)
 			}
 		}
