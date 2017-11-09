@@ -204,7 +204,8 @@ func (c *client) PollTaskStatus(refURL string, timeout time.Duration) (*Executio
 		if err != nil {
 			return nil, errors.Wrap(err, "failed polling task status")
 		}
-		if resp.EndTime > 0 {
+
+		if resp != nil && resp.EndTime > 0 {
 			logrus.Info("Pipeline has completed")
 			return resp, nil
 		}

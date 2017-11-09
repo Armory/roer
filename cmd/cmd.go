@@ -46,6 +46,10 @@ func NewRoer(version string, clientConfig spinnaker.ClientConfig) *cli.App {
 							Name:  "monitor, m",
 							Usage: "Continue to monitor the executing of the pipeline",
 						},
+						cli.IntFlag{
+							Name:  "retry, r",
+							Usage: "Number of times to have the monitor retry if a call fails or times out",
+						},
 					},
 					Before: func(cc *cli.Context) error {
 						if cc.NArg() != 2 {
