@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -273,7 +275,51 @@ func AppListAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
 	}
 }
 
-// PipelineSaveJSONAction creates the ActionFunc for saving a pipeline from json source
+func AppHistoryAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
+	return func(cc *cli.Context) error {
+		appName := cc.Args().Get(0)
+
+		client, err := clientFromContext(cc, clientConfig)
+		if err != nil {
+			return errors.Wrapf(err, "creating spinnaker client")
+		}
+
+		history, err := client.ApplicationHistory(appName)
+		if err != nil {
+			return errors.Wrap(err, "Fetching application history")
+		}
+
+		pipelineName := cc.String("pipeline")
+		for _, e := range history {
+			if pipelineName == "" || pipelineName == e.Name {
+				fmt.Printf("%d %s %s %s\n", e.StartTime, e.ID, e.Status, e.Name)
+			}
+		}
+
+		return nil
+	}
+}
+
+func ExecGetAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
+	return func(cc *cli.Context) error {
+		execID := cc.Args().Get(0)
+
+		client, err := clientFromContext(cc, clientConfig)
+		if err != nil {
+			return errors.Wrap(err, "creating spinnaker client")
+		}
+
+		exec, err := client.Execution(execID)
+		if err != nil {
+			return errors.Wrap(err, "Fetching execution")
+		}
+
+		prettyPrintJSON(exec)
+		return nil
+	}
+}
+
+// Save a pipeline from json source
 func PipelineSaveJSONAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
 	return func(cc *cli.Context) error {
 		jsonFile := cc.Args().Get(0)
@@ -402,6 +448,45 @@ func PipelineTemplatePublishAction(clientConfig spinnaker.ClientConfig) cli.Acti
 			logrus.WithField("status", resp.Status).Info("Task completed")
 		}
 
+		return nil
+	}
+}
+
+// PipelineTemplateRenderAction creates a rendered template and writes it to disk
+func PipelineTemplateRenderAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
+	return func(cc *cli.Context) error {
+		templateFile := cc.Args().Get(0)
+
+		template, err := ioutil.ReadFile(templateFile)
+		if err != nil {
+			return errors.Wrapf(err, "reading template file: %s", templateFile)
+		}
+
+		templateStr := string(template)
+
+		valuesFile := cc.Args().Get(1)
+		valuesData, err := ioutil.ReadFile(valuesFile)
+		if err != nil {
+			return errors.Wrapf(err, "reading values file: %s", valuesFile)
+		}
+
+		var values map[string]string
+		if err := json.Unmarshal(valuesData, &values); err != nil {
+			return errors.Wrapf(err, "unmarshaling json in %s", valuesFile)
+		}
+
+		var tmplVarsRegex = regexp.MustCompile(`{{ *([a-zA-Z0-9_.-]*) *}}`)
+		submatches := tmplVarsRegex.FindAllStringSubmatch(templateStr, -1)
+		for _, submatch := range submatches {
+			fullMatch := submatch[0]
+			keyMatch := submatch[1]
+			substitueVal := values[keyMatch]
+			templateStr = strings.Replace(templateStr, fullMatch, substitueVal, -1)
+		}
+
+		outputFile := cc.Args().Get(2)
+		fmt.Println("Outputting rendered template to:", outputFile)
+		ioutil.WriteFile(outputFile, []byte(templateStr), 0644)
 		return nil
 	}
 }

@@ -153,6 +153,42 @@ func NewRoer(version string, clientConfig spinnaker.ClientConfig) *cli.App {
 					},
 					Action: roer.PipelineExecAction(clientConfig),
 				},
+				{
+					Name:      "history",
+					Usage:     "list pipeline executions",
+					ArgsUsage: "[app name]",
+					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  "pipeline, p",
+							Usage: "filter return to only the named pipeline",
+						},
+					},
+					Before: func(cc *cli.Context) error {
+						if cc.NArg() != 1 {
+							return errors.New("application name is required")
+						}
+						return nil
+					},
+					Action: roer.AppHistoryAction(clientConfig),
+				},
+			},
+		},
+		{
+			Name:  "execution",
+			Usage: "commands that work with a single execution",
+			Subcommands: []cli.Command{
+				{
+					Name:      "get",
+					Usage:     "returns the execution json",
+					ArgsUsage: "[exec id]",
+					Before: func(cc *cli.Context) error {
+						if cc.NArg() != 1 {
+							return errors.New("execution ID is required")
+						}
+						return nil
+					},
+					Action: roer.ExecGetAction(clientConfig),
+				},
 			},
 		},
 		{
@@ -188,6 +224,22 @@ func NewRoer(version string, clientConfig spinnaker.ClientConfig) *cli.App {
 						return nil
 					},
 					Action: roer.PipelineTemplatePublishAction(clientConfig),
+				},
+				{
+					Name:  "render",
+					Usage: "render a pipeline json based on a template using string substitution",
+					Description: `
+		Given a pipeline template render a pipeline JSON locally. A json file with
+		values is substituted to keys in the given JSON template
+					`,
+					ArgsUsage: "[template.json] [values.json] [output.json]",
+					Before: func(cc *cli.Context) error {
+						if cc.NArg() != 3 {
+							return errors.New("path to template.json, values.json and output.json are required")
+						}
+						return nil
+					},
+					Action: roer.PipelineTemplateRenderAction(clientConfig),
 				},
 				{
 					Name:  "plan",
