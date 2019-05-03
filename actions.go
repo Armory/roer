@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -11,9 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spinnaker/roer/spinnaker"
-	"gopkg.in/urfave/cli.v1"
-	"regexp"
-	"strings"
+	"github.com/urfave/cli"
 )
 
 // PipelineExecAction requests a pipeline execution and optionally waits for
@@ -243,7 +243,11 @@ func AppGetAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
 			logrus.Error("App does not exist or insufficient permission")
 			return fmt.Errorf("Could not fetch app info")
 		}
-		prettyPrintJSON(appInfo)
+		appYaml, err := yaml.JSONToYAML(appInfo)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal: %v", err)
+		}
+		fmt.Printf("%s", appYaml)
 		return nil
 	}
 }
@@ -264,7 +268,7 @@ func AppListAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
 		}
 
 		for _, app := range appInfo {
-			logrus.Debug(app.Name)
+			logrus.Info(app.Name)
 		}
 
 		return nil
@@ -369,7 +373,7 @@ func PipelineListConfigsAction(clientConfig spinnaker.ClientConfig) cli.ActionFu
 		}
 
 		for _, pipeline := range pipelineInfo {
-			logrus.Debug(pipeline.Name)
+			logrus.Info(pipeline.Name)
 		}
 		return nil
 	}
@@ -393,7 +397,7 @@ func PipelineGetConfigAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc
 		}
 
 		jsonStr, _ := json.Marshal(pipelineConfig)
-		logrus.Debug(string(jsonStr))
+		prettyPrintJSON(jsonStr)
 		return nil
 	}
 }
@@ -513,7 +517,7 @@ func PipelineTemplatePlanAction(clientConfig spinnaker.ClientConfig) cli.ActionF
 				prettyPrintJSON(resp)
 				return nil
 			}
-			logrus.Debug(string(resp))
+			logrus.Info(string(resp))
 			return errors.Wrap(err, "planning configuration")
 		}
 
@@ -550,8 +554,8 @@ func PipelineTemplateConvertAction(clientConfig spinnaker.ClientConfig) cli.Acti
 			return errors.Wrap(err, "marshaling template to YAML")
 		}
 
-		logrus.Debug(generatedTemplateHeader)
-		logrus.Debug(string(template))
+		logrus.Info(generatedTemplateHeader)
+		logrus.Info(string(template))
 
 		return nil
 	}

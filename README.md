@@ -7,6 +7,8 @@ been doing so far.
 
 # roer
 
+**Note: A new, better CLI is on the way. This tool is in maintenance mode.**
+
 A thin CLI for Spinnaker.
 
 This project is aimed to provide a thin, limited client that's suitable for
@@ -129,7 +131,7 @@ $ SPINNAKER_API=https://localhost:7002 \
 
 ## pipeline
 
-Create or update a managed pipeline within an applicaiton:
+Create or update a managed pipeline within an application:
 
 ```json
 $ SPINNAKER_API=https://localhost:7002 \
@@ -139,11 +141,8 @@ $ SPINNAKER_API=https://localhost:7002 \
 
 # Development
 
-Install [glide][glide], then install the dependencies:
-
-`$ glide i`
-
-To run:
+All dependencies have been vendored into the repository and are managed via
+[govendor](github.com/kardianos/govendor). You can sync the deps with `govendor sync`.
 
 `$ go run cmd/roer/main.go`
 
