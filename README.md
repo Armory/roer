@@ -1,13 +1,4 @@
-# WARNING
-
-This fork is managed in a unique way because we have multiple feature branches
-and the master is tracking an open source package. See the process at
-https://github.com/Armory/roer/wiki/Fork-Management for info about what we've
-been doing so far.
-
 # roer
-
-**Note: A new, better CLI is on the way. This tool is in maintenance mode.**
 
 A thin CLI for Spinnaker.
 
@@ -131,7 +122,7 @@ $ SPINNAKER_API=https://localhost:7002 \
 
 ## pipeline
 
-Create or update a managed pipeline within an application:
+Create or update a managed pipeline within an applicaiton:
 
 ```json
 $ SPINNAKER_API=https://localhost:7002 \
@@ -141,8 +132,11 @@ $ SPINNAKER_API=https://localhost:7002 \
 
 # Development
 
-All dependencies have been vendored into the repository and are managed via
-[govendor](github.com/kardianos/govendor). You can sync the deps with `govendor sync`.
+Install [glide][glide], then install the dependencies:
+
+`$ glide i`
+
+To run:
 
 `$ go run cmd/roer/main.go`
 
