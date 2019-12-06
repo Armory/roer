@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -13,57 +11,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spinnaker/roer/spinnaker"
-	"github.com/urfave/cli"
+	"gopkg.in/urfave/cli.v1"
 )
-
-// PipelineExecAction requests a pipeline execution and optionally waits for
-// it to complete. Arguments are the name of the app and the name of the
-// pipeline to start.
-func PipelineExecAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
-	return func(cc *cli.Context) error {
-		appName := cc.Args().Get(0)
-		pipelineName := cc.Args().Get(1)
-		monitor := cc.Bool("monitor")
-		numRetries := cc.Int("retry")
-
-		logrus.WithFields(logrus.Fields{
-			"app":      appName,
-			"pipeline": pipelineName,
-			"monitor":  monitor,
-			"retries":  numRetries,
-		}).Info("Executing Pipeline...")
-
-		client, err := clientFromContext(cc, clientConfig)
-		if err != nil {
-			return errors.Wrapf(err, "creating spinnaker client")
-		}
-
-		resp, err := client.ExecPipeline(appName, pipelineName)
-		if err != nil {
-			return errors.Wrapf(err, "couldn't execute pipeline")
-		}
-		logrus.Infof("Ref task id: %s", resp.Ref)
-		if monitor {
-			var err error
-			var execResp *spinnaker.ExecutionResponse
-			for retryCounter := 0; retryCounter <= numRetries; {
-				retryCounter++
-				logrus.Infof("Polling tasks status, retry number: %d", retryCounter)
-				execResp, err = client.PollTaskStatus(resp.Ref, 30*time.Minute)
-				if err != nil {
-					logrus.WithField("exec_response", execResp).Errorf("Executing response error: %v", err)
-				}
-			}
-			if err != nil {
-				return err
-			}
-			if execResp != nil && execResp.Status != "SUCCEEDED" {
-				return fmt.Errorf("pipeline did not complete with a SUCCESS status.  Ended with status: %s", execResp.Status)
-			}
-		}
-		return nil
-	}
-}
 
 // PipelineSaveAction creates the ActionFunc for saving pipeline configurations.
 func PipelineSaveAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
@@ -243,11 +192,7 @@ func AppGetAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
 			logrus.Error("App does not exist or insufficient permission")
 			return fmt.Errorf("Could not fetch app info")
 		}
-		appYaml, err := yaml.JSONToYAML(appInfo)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal: %v", err)
-		}
-		fmt.Printf("%s", appYaml)
+		prettyPrintJSON(appInfo)
 		return nil
 	}
 }
@@ -268,58 +213,14 @@ func AppListAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
 		}
 
 		for _, app := range appInfo {
-			logrus.Info(app.Name)
+			logrus.Debug(app.Name)
 		}
 
 		return nil
 	}
 }
 
-func AppHistoryAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
-	return func(cc *cli.Context) error {
-		appName := cc.Args().Get(0)
-
-		client, err := clientFromContext(cc, clientConfig)
-		if err != nil {
-			return errors.Wrapf(err, "creating spinnaker client")
-		}
-
-		history, err := client.ApplicationHistory(appName)
-		if err != nil {
-			return errors.Wrap(err, "Fetching application history")
-		}
-
-		pipelineName := cc.String("pipeline")
-		for _, e := range history {
-			if pipelineName == "" || pipelineName == e.Name {
-				fmt.Printf("%d %s %s %s\n", e.StartTime, e.ID, e.Status, e.Name)
-			}
-		}
-
-		return nil
-	}
-}
-
-func ExecGetAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
-	return func(cc *cli.Context) error {
-		execID := cc.Args().Get(0)
-
-		client, err := clientFromContext(cc, clientConfig)
-		if err != nil {
-			return errors.Wrap(err, "creating spinnaker client")
-		}
-
-		exec, err := client.Execution(execID)
-		if err != nil {
-			return errors.Wrap(err, "Fetching execution")
-		}
-
-		prettyPrintJSON(exec)
-		return nil
-	}
-}
-
-// Save a pipeline from json source
+// PipelineSaveJSONAction creates the ActionFunc for saving a pipeline from json source
 func PipelineSaveJSONAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
 	return func(cc *cli.Context) error {
 		jsonFile := cc.Args().Get(0)
@@ -373,7 +274,7 @@ func PipelineListConfigsAction(clientConfig spinnaker.ClientConfig) cli.ActionFu
 		}
 
 		for _, pipeline := range pipelineInfo {
-			logrus.Info(pipeline.Name)
+			logrus.Debug(pipeline.Name)
 		}
 		return nil
 	}
@@ -397,7 +298,7 @@ func PipelineGetConfigAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc
 		}
 
 		jsonStr, _ := json.Marshal(pipelineConfig)
-		prettyPrintJSON(jsonStr)
+		logrus.Debug(string(jsonStr))
 		return nil
 	}
 }
@@ -452,45 +353,6 @@ func PipelineTemplatePublishAction(clientConfig spinnaker.ClientConfig) cli.Acti
 	}
 }
 
-// PipelineTemplateRenderAction creates a rendered template and writes it to disk
-func PipelineTemplateRenderAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
-	return func(cc *cli.Context) error {
-		templateFile := cc.Args().Get(0)
-
-		template, err := ioutil.ReadFile(templateFile)
-		if err != nil {
-			return errors.Wrapf(err, "reading template file: %s", templateFile)
-		}
-
-		templateStr := string(template)
-
-		valuesFile := cc.Args().Get(1)
-		valuesData, err := ioutil.ReadFile(valuesFile)
-		if err != nil {
-			return errors.Wrapf(err, "reading values file: %s", valuesFile)
-		}
-
-		var values map[string]string
-		if err := json.Unmarshal(valuesData, &values); err != nil {
-			return errors.Wrapf(err, "unmarshaling json in %s", valuesFile)
-		}
-
-		var tmplVarsRegex = regexp.MustCompile(`{{ *([a-zA-Z0-9_.-]*) *}}`)
-		submatches := tmplVarsRegex.FindAllStringSubmatch(templateStr, -1)
-		for _, submatch := range submatches {
-			fullMatch := submatch[0]
-			keyMatch := submatch[1]
-			substitueVal := values[keyMatch]
-			templateStr = strings.Replace(templateStr, fullMatch, substitueVal, -1)
-		}
-
-		outputFile := cc.Args().Get(2)
-		fmt.Println("Outputting rendered template to:", outputFile)
-		ioutil.WriteFile(outputFile, []byte(templateStr), 0644)
-		return nil
-	}
-}
-
 // PipelineTemplatePlanAction creates the ActionFunc for planning a pipeline
 // template with a given configuration.
 func PipelineTemplatePlanAction(clientConfig spinnaker.ClientConfig) cli.ActionFunc {
@@ -517,7 +379,7 @@ func PipelineTemplatePlanAction(clientConfig spinnaker.ClientConfig) cli.ActionF
 				prettyPrintJSON(resp)
 				return nil
 			}
-			logrus.Info(string(resp))
+			logrus.Debug(string(resp))
 			return errors.Wrap(err, "planning configuration")
 		}
 
@@ -554,8 +416,8 @@ func PipelineTemplateConvertAction(clientConfig spinnaker.ClientConfig) cli.Acti
 			return errors.Wrap(err, "marshaling template to YAML")
 		}
 
-		logrus.Info(generatedTemplateHeader)
-		logrus.Info(string(template))
+		logrus.Debug(generatedTemplateHeader)
+		logrus.Debug(string(template))
 
 		return nil
 	}

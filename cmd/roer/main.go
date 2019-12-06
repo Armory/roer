@@ -12,7 +12,6 @@ import (
 var version = "dev"
 
 func main() {
-
 	// TODO rz - Don't really like this bit. Standardize a spinnaker config file.
 	// maybe worthwhile splitting out this spinnaker API into a standard lib...
 	if os.Getenv("SPINNAKER_API") == "" {
